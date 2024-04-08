@@ -1,0 +1,91 @@
+trigger:
+- none
+
+# agent pool details: name --> name of the agent pool, vmImage --> Image ID of VM
+pool:
+  name: aws-pool
+  vmImage: docker-server
+
+# variables to be used and the group name of the variables
+variables:
+  - group: aws-manasa
+
+# a task that should be executed
+# task declaration
+steps:
+- task: Bash@3
+  displayName: 'Install AWS CLI'
+  inputs:
+    # specifies that the script is written directly within the YAML file
+    targetType: 'inline'
+    script: |
+      sudo apt-get update
+      sudo apt-get install awscli
+#     DEBIAN_FRONTEND=noninteractive apt-get install -y awscli : to run in an interactive mode. 
+
+- task: DownloadSecureFile@1
+  displayName: 'Download PEM file to temp directory of agent'
+  inputs:
+    secureFile: 'mykeypair.pem'  
+    targetPath: '$(Agent.TempDirectory)'
+
+- task: CopyFiles@2
+  displayName: 'Download index.html file to temp directory of agent'
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)'  
+    Contents: 'index.html'
+    TargetFolder: '$(Agent.TempDirectory)'
+
+- script: |
+    aws configure set aws_access_key_id $(AWS_ACCESS_KEY_ID)
+    aws configure set aws_secret_access_key $(AWS_SECRET_ACCESS_KEY)
+    aws configure set region $(AWS_REGION)
+  displayName: 'Configure AWS Credentials'
+
+- script: |
+    # Launches ec2 server with following configurations: 
+    instance_id=$(aws ec2 run-instances \
+    --image-id ami-0b990d3cfca306617 \
+    --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=by-az-agent-manasa}]' \
+    --instance-type t2.micro \
+    --key-name mykeypair \
+    --subnet-id subnet-01d2eeadfc5a59d62 \
+    --security-group-ids sg-05cb59f6315e06990 \
+    --query 'Instances[0].InstanceId' \
+    --output text) 
+
+    echo "Launched..."
+
+    # Wait for instance to be running:
+    aws ec2 wait instance-running --instance-ids $instance_id
+
+    echo "Wait completed"
+
+    # Get the public IP address of the instance:
+    public_ip=$(aws ec2 describe-instances --instance-ids $instance_id --query 'Reservations[0].Instances[0].[PublicIpAddress]' --output text)
+
+    echo "EC2 instance launched with Instance ID: $instance_id and Public IP: $public_ip"
+
+    # Removes all keys belonging to the specified hostname from the ~/.ssh/known_hosts file: 
+    ssh-keygen -R $public_ip
+
+    # Changes the permissions of a file to make it readable and writable only by the file owner, with no permissions for any other user: 
+    chmod 600 $(Agent.TempDirectory)/mykeypair.pem
+
+    # SSH into the instance without prompting for confirmation when connecting and install Apache HTTP Server:
+    ssh -o StrictHostKeyChecking=no -i $(Agent.TempDirectory)/mykeypair.pem ec2-user@$public_ip 'sudo yum update -y && sudo yum install -y httpd && sudo systemctl start httpd && sudo systemctl enable httpd'
+
+    # Change permissions:
+    ssh -o StrictHostKeyChecking=no -i $(Agent.TempDirectory)/mykeypair.pem ec2-user@54.215.246.150 'sudo chmod 777 /var/www/html/'
+
+    echo "Apache HTTP Server installed and started"
+
+    ssh -o StrictHostKeyChecking=no -i $(Agent.TempDirectory)/mykeypair.pem ec2-user@$public_ip 'sudo chown -R ec2-user:ec2-user /var/www/html/'
+
+    # Uploads index.html to EC2 instance:
+    scp -o StrictHostKeyChecking=no -i $(Agent.TempDirectory)/mykeypair.pem $(Agent.TempDirectory)/index.html ec2-user@$public_ip:/var/www/html/index.html
+
+    echo "index.html uploaded to EC2 instance"
+
+  displayName: 'Launch EC2 Instance and Deploy index.html'
+
