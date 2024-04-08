@@ -1,0 +1,50 @@
+trigger:
+- none
+
+# agent pool details: name --> name of the agent pool, vmImage --> Image ID of VM
+pool:
+  name: aws-pool
+  vmImage: docker-server
+
+# variables to be used and the group name of the variables
+variables:
+  - group: aws-manasa
+
+# a task that should be executed
+# task declaration
+steps:
+- task: Bash@3
+  displayName: 'Install AWS CLI'
+  inputs:
+    # specifies that the script is written directly within the YAML file
+    targetType: 'inline'
+    script: |
+      sudo apt-get update
+      sudo apt-get install awscli
+# DEBIAN_FRONTEND=noninteractive apt-get install -y awscli : to run in an interactive mode. 
+
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)'  
+    Contents: 'index.html'
+    TargetFolder: '$(Agent.TempDirectory)'
+    
+- script: |
+    aws configure set aws_access_key_id $(AWS_ACCESS_KEY_ID)
+    aws configure set aws_secret_access_key $(AWS_SECRET_ACCESS_KEY)
+    aws configure set region $(AWS_REGION)
+  displayName: 'Configure AWS Credentials'
+
+- script: |
+    instance_id=$(aws ec2 run-instances \
+    --image-id ami-0b990d3cfca306617 \
+    --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=by-az-userdata-manasa}]' \
+    --instance-type t2.micro \
+    --key-name mykeypair \
+    --subnet-id subnet-01d2eeadfc5a59d62 \
+    --security-group-ids sg-05cb59f6315e06990 \
+    --query 'Instances[0].InstanceId' \
+    --user-data file://$(System.DefaultWorkingDirectory)/userdata.sh \
+    --output text) 
+
+  displayName: 'Launch EC2 Instance using User Data'
