@@ -22,12 +22,6 @@ steps:
       sudo apt-get update
       sudo apt-get install awscli
 # DEBIAN_FRONTEND=noninteractive apt-get install -y awscli : to run in an interactive mode. 
-
-- task: CopyFiles@2
-  inputs:
-    SourceFolder: '$(Build.SourcesDirectory)'  
-    Contents: 'index.html'
-    TargetFolder: '$(Agent.TempDirectory)'
     
 - script: |
     aws configure set aws_access_key_id $(AWS_ACCESS_KEY_ID)
@@ -38,7 +32,7 @@ steps:
 - script: |
     instance_id=$(aws ec2 run-instances \
     --image-id ami-0b990d3cfca306617 \
-    --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=by-az-userdata-manasa}]' \
+    --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=by-az-using-userdata}]' \
     --instance-type t2.micro \
     --key-name mykeypair \
     --subnet-id subnet-01d2eeadfc5a59d62 \
