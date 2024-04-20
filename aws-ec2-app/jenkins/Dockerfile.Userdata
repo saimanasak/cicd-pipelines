@@ -1,0 +1,14 @@
+# Use the official Jenkins image as base
+FROM jenkins/jenkins:2.430-jdk21
+
+# Switch to root user to install the required tools
+USER root
+
+# Install the necessary tools
+RUN apt-get update \
+    && apt-get install -y \
+       openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+    
+# Copy a file from the local system to the container
+COPY userdata.sh /var/jenkins_home/
