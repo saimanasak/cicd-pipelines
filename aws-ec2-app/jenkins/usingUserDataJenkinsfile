@@ -1,0 +1,49 @@
+pipeline {
+    agent any
+    
+    environment {
+        AWS_DEFAULT_REGION = "us-west-1"
+    }
+    
+    stages {
+        stage('Install AWS CLI') {
+            steps {
+                sh 'apt-get update'
+                sh 'apt-get -y install awscli'
+            }
+        }
+        
+        stage('Launch EC2 Instance and Deploy Web App') {
+            steps {
+                withCredentials([[
+                    // Binding AWS credentials
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                    credentialsId: 'aws-cred-manasa',
+                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+                ]])
+                {
+                    script {
+                        
+                        // Launches EC2 instance along with a user data script
+                        def instance_id = sh(script: '''
+                            aws ec2 run-instances \
+                            --image-id ami-0b990d3cfca306617 \
+                            --tag-specifications ResourceType=instance,Tags=[{Key=Name,Value=by-jenkins-using-UserDataScript}] \
+                            --instance-type t2.micro \
+                            --key-name mykeypair \
+                            --subnet-id subnet-01d2eeadfc5a59d62 \
+                            --security-group-ids sg-05cb59f6315e06990 \
+                            --query Instances[*].InstanceId \
+                            --user-data file:///var/jenkins_home/userdata.sh \
+                            --output text
+                        ''', returnStdout: true).trim()
+                        
+                        echo "Launched and Deployed successfully..."
+                        
+                    }
+                }
+            }
+        }
+    }
+}
