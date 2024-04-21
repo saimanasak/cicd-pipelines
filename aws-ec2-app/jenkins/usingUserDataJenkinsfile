@@ -34,10 +34,12 @@ pipeline {
                             --key-name mykeypair \
                             --subnet-id subnet-01d2eeadfc5a59d62 \
                             --security-group-ids sg-05cb59f6315e06990 \
-                            --query Instances[*].InstanceId \
+                            --query Instances[0].InstanceId \
                             --user-data file:///var/jenkins_home/userdata.sh \
                             --output text
                         ''', returnStdout: true).trim()
+                        
+                        echo "Launched instance is: $instance_id"
                         
                         echo "Launched and Deployed successfully..."
                         
