@@ -69,7 +69,6 @@ pipeline {
                                 
                                 // Set required permissions and configurations on the EC2 instance
                                 sh "chmod 600 ${MY_PEM_KEY}"
-                                sh "ssh-keygen -R $public_ip"
                                 sh "ssh -o StrictHostKeyChecking=no -i \"$MY_PEM_KEY\" ec2-user@\"$public_ip\" uname -a"
                                 
                                 // Installs, starts, and enables the Apache
