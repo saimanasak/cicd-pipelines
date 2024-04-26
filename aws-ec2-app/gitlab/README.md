@@ -1,0 +1,9 @@
+- Launching an AWS EC2 instance and deploying a small application using GitLab pipeline.   
+- This has been done in the two ways:  
+    - Using **User Data** script: This script runs when a server is started.  
+    - Using **PEM** key: Once a server is launched and logs in to the server using the PEM key.  
+- Files:  
+    - **_usingpem.gitlab-ci.yaml_**: Pipeline configuration for launching an EC2 instance and deploying an application to a server using a PEM key for authentication.  
+    - **_usinguserdata.gitlab-ci.yaml_**: Pipeline configuration for launching an EC2 instance and deploying an application to a server using a User Data script for automated setup and configuration.  
+    - **_userdata.sh_**: User Data script for initializing and configuring an EC2 instance during launch.  
+    - **_index.html_**: Web application file containing code for a simple web app that updates the message upon clicking the button.
