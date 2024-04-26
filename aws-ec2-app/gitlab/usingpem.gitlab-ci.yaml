@@ -1,0 +1,68 @@
+stages:
+  - deploy
+
+deploy_ec2:
+  stage: deploy
+
+  image: 
+    name: python:3.8
+    entrypoint: [""]
+
+  before_script:
+    - apt-get update 
+    - apt-get install -y awscli
+    
+  script:
+    - >
+      aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID 
+
+      aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY 
+
+      aws configure set default.region $AWS_DEFAULT_REGION 
+
+      INSTANCE_ID=$(aws ec2 run-instances \
+                     --image-id ami-0b990d3cfca306617 \
+                     --instance-type t2.micro \
+                     --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=by-gitlab-using-PEM}]' \
+                     --key-name mykeypair \
+                     --subnet-id subnet-01d2eeadfc5a59d62 \
+                     --security-group-ids sg-05cb59f6315e06990 \
+                     --query 'Instances[0].InstanceId' \
+                     --output text) 
+
+      echo "ID of launched instance: $INSTANCE_ID"
+
+      echo "Wait..."
+
+      aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
+
+      echo "Wait completed"
+
+      public_ip=$(aws ec2 describe-instances \
+                   --instance-ids $INSTANCE_ID \
+                   --query 'Reservations[0].Instances[0].[PublicIpAddress]' \
+                   --output text)
+
+      echo "EC2 instance launched with Instance ID: $instance_id and Public IP: $public_ip"
+
+      echo "Connecting to EC2 instance using .pem file..."
+
+      echo "$PEM_KEY" > /tmp/aws.pem
+
+      chmod 600 /tmp/aws.pem
+
+      ssh -o StrictHostKeyChecking=no -i /tmp/aws.pem ec2-user@$public_ip "echo 'Connection successful'"
+
+      ssh -o StrictHostKeyChecking=no -i /tmp/aws.pem ec2-user@$public_ip 'sudo yum update -y && sudo yum install -y httpd && sudo systemctl start httpd && sudo systemctl enable httpd'
+
+      ssh -o StrictHostKeyChecking=no -i /tmp/aws.pem ec2-user@$public_ip 'sudo chmod 777 /var/www/html/'
+
+      ssh -o StrictHostKeyChecking=no -i /tmp/aws.pem ec2-user@$public_ip 'sudo chown -R ec2-user:ec2-user /var/www/html/'
+
+      scp -o StrictHostKeyChecking=no -i /tmp/aws.pem $CI_PROJECT_DIR/index.html ec2-user@$public_ip:/var/www/html/index.html
+      
+  variables:
+    AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+    AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+    PEM_KEY: $PEM_KEY
