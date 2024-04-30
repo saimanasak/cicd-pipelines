@@ -1,25 +1,32 @@
+# Define the stages for the CI/CD pipeline, with 'deploy' being one of them
 stages:
   - deploy
 
+# Define a job named 'deploy_ec2' that belongs to the 'deploy' stage
 deploy_ec2:
   stage: deploy
 
   image: 
+    # Specify the Docker image to be used for this job, which is Python 3.8
     name: python:3.8
+    # Clear any entrypoint specified in the Docker image, allowing custom commands to be executed
     entrypoint: [""]
 
+  # Update and install AWS CLI
   before_script:
     - apt-get update 
     - apt-get install -y awscli
     
   script:
     - >
+      # Configure AWS CLI with provided credentials
       aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID 
 
       aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY 
 
       aws configure set default.region $AWS_DEFAULT_REGION 
 
+      # Launch EC2 instance
       INSTANCE_ID=$(aws ec2 run-instances \
                      --image-id ami-0b990d3cfca306617 \
                      --instance-type t2.micro \
@@ -32,12 +39,12 @@ deploy_ec2:
 
       echo "ID of launched instance: $INSTANCE_ID"
 
-      echo "Wait..."
-
+      # Wait for the instance to be in a ready state
       aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
 
       echo "Wait completed"
 
+      # Get the public IP address of the launched instance
       public_ip=$(aws ec2 describe-instances \
                    --instance-ids $INSTANCE_ID \
                    --query 'Reservations[0].Instances[0].[PublicIpAddress]' \
@@ -47,21 +54,25 @@ deploy_ec2:
 
       echo "Connecting to EC2 instance using .pem file..."
 
+      # Store PEM key in a temporary file
       echo "$PEM_KEY" > /tmp/aws.pem
 
+      # Set appropriate permissions for the PEM key
       chmod 600 /tmp/aws.pem
 
-      ssh -o StrictHostKeyChecking=no -i /tmp/aws.pem ec2-user@$public_ip "echo 'Connection successful'"
-
+      # Install and start Apache web server on the EC2 instance
       ssh -o StrictHostKeyChecking=no -i /tmp/aws.pem ec2-user@$public_ip 'sudo yum update -y && sudo yum install -y httpd && sudo systemctl start httpd && sudo systemctl enable httpd'
 
+      # Set permissions and ownership for web server directory
       ssh -o StrictHostKeyChecking=no -i /tmp/aws.pem ec2-user@$public_ip 'sudo chmod 777 /var/www/html/'
 
       ssh -o StrictHostKeyChecking=no -i /tmp/aws.pem ec2-user@$public_ip 'sudo chown -R ec2-user:ec2-user /var/www/html/'
 
+      # Copy the index.html file to the web server directory
       scp -o StrictHostKeyChecking=no -i /tmp/aws.pem $CI_PROJECT_DIR/index.html ec2-user@$public_ip:/var/www/html/index.html
       
   variables:
+    # Define environment variables for AWS credentials and PEM key
     AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
     AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
     AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
