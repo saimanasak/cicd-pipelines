@@ -7,3 +7,4 @@
     - **_usinguserdata.gitlab-ci.yaml_**: Pipeline configuration for launching an EC2 instance and deploying an application to a server using a User Data script for automated setup and configuration.  
     - **_userdata.sh_**: User Data script for initializing and configuring an EC2 instance during launch.  
     - **_index.html_**: Web application file containing code for a simple web app that updates the message upon clicking the button.
+- Blog: [Medium](https://saimanasak.medium.com/unlocking-efficiency-aws-ec2-deployment-with-gitlab-a2d94bc200c7)
